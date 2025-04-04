@@ -27,6 +27,12 @@ Il permet de suivre les performances des équipes, les stats des joueurs, les cl
 
 ---
 
+### 4️⃣ Lancer l'application sur Streamlit !
+
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://riaaznba.streamlit.app/)
+
+---
+
 ## ▶️ Lancer l'application
 
 Assurez-vous d'avoir **Python 3.8+** installé.
