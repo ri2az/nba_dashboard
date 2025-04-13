@@ -7,13 +7,13 @@ Il permet de suivre les performances des équipes, les stats des joueurs, les cl
 
 ## 🔧 Fonctionnalités
 
-- 📊 Classement NBA en temps réel (données de [basketball-reference.com](https://www.basketball-reference.com))
-- 🏆 Simulateur Playoffs : Top 8 Est & Ouest
-- 📺 Affichage des matchs à venir (données de [ESPN](https://www.espn.com/nba/schedule))
-- 🧠 Filtres dynamiques (conférences, divisions, tri, recherche)
-- 🧍 Stats joueurs (points, passes, rebonds)
-- 📥 Export CSV du classement
-- 🖼️ Logos des équipes dans le classement
+- 📊 Visualiser les classements NBA par saison
+- 🧠 Explorer les leaders statistiques (victoires, Win%, différentiel de points)
+- 🎮 Simuler les playoffs et afficher le bracket
+- 🏅 Générer un classement MVP personnalisé basé sur les performances
+- 🔥 Afficher une heatmap des statistiques d’un joueur
+- 📆 Voir les matchs à venir
+- 📥 Exporter les données en CSV
 
 ---
 
