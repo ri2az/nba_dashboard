@@ -217,20 +217,23 @@ coef_pts = st.sidebar.slider("Poids des Points (PTS)", 0.0, 2.0, 0.5, 0.1)
 coef_ast = st.sidebar.slider("Poids des Passes (AST)", 0.0, 2.0, 1.2, 0.1)
 coef_trb = st.sidebar.slider("Poids des Rebonds (TRB)", 0.0, 2.0, 1.0, 0.1)
 
+# --- Filtrage : minimum 65 matchs joués ---
+player_stats_filtered = player_stats[player_stats["G"] >= 65]
+
 # --- Calcul de l'impact personnalisé ---
-player_stats["Impact Score"] = (
-    player_stats["PTS"] * coef_pts +
-    player_stats["AST"] * coef_ast +
-    player_stats["TRB"] * coef_trb
+player_stats_filtered["Impact Score"] = (
+    player_stats_filtered["PTS"] * coef_pts +
+    player_stats_filtered["AST"] * coef_ast +
+    player_stats_filtered["TRB"] * coef_trb
 )
 
-top_impact = player_stats.sort_values(by="Impact Score", ascending=False)[
-    ["Player", "PTS", "AST", "TRB", "Impact Score"]
+top_impact = player_stats_filtered.sort_values(by="Impact Score", ascending=False)[
+    ["Player", "G", "PTS", "AST", "TRB", "Impact Score"]
 ].head(10)
 
 top_impact["Impact Score"] = top_impact["Impact Score"].round(2)
 
-st.markdown("**Top 10 joueurs par score d'impact personnalisé**")
+st.markdown("**Top 10 joueurs par score d'impact personnalisé (≥ 65 matchs joués)**")
 st.dataframe(top_impact.reset_index(drop=True), use_container_width=True)
 
 # --- HEATMAP JOUEUR ---
