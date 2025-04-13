@@ -4,6 +4,11 @@ import requests
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import pydeck as pdk
+import seaborn as sns
+import numpy as np
+import matplotlib.patches as patches
+import random
+
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="NBA Dashboard", layout="wide")
@@ -203,11 +208,262 @@ if not games_df.empty:
 else:
     st.info("Aucun match trouvé pour aujourd’hui.")
 
-# --- JOUEURS ---
-st.subheader("\U0001F3C3‍ Top joueurs par stat (par match)")
-st.markdown("**Top 10 Pointeurs**")
-st.dataframe(player_stats.sort_values(by="PTS", ascending=False)[["Player", "PTS"]].head(10), use_container_width=True)
-st.markdown("**Top 10 Passeurs**")
-st.dataframe(player_stats.sort_values(by="AST", ascending=False)[["Player", "AST"]].head(10), use_container_width=True)
-st.markdown("**Top 10 Rebondeurs**")
-st.dataframe(player_stats.sort_values(by="TRB", ascending=False)[["Player", "TRB"]].head(10), use_container_width=True)
+# --- MVP / IMPACT ---
+st.subheader("🏅 Classement MVP / Impact")
+
+# --- Paramètres depuis la sidebar ---
+st.sidebar.header("⚙️ Poids MVP")
+coef_pts = st.sidebar.slider("Poids des Points (PTS)", 0.0, 2.0, 0.5, 0.1)
+coef_ast = st.sidebar.slider("Poids des Passes (AST)", 0.0, 2.0, 1.2, 0.1)
+coef_trb = st.sidebar.slider("Poids des Rebonds (TRB)", 0.0, 2.0, 1.0, 0.1)
+
+# --- Calcul de l'impact personnalisé ---
+player_stats["Impact Score"] = (
+    player_stats["PTS"] * coef_pts +
+    player_stats["AST"] * coef_ast +
+    player_stats["TRB"] * coef_trb
+)
+
+top_impact = player_stats.sort_values(by="Impact Score", ascending=False)[
+    ["Player", "PTS", "AST", "TRB", "Impact Score"]
+].head(10)
+
+top_impact["Impact Score"] = top_impact["Impact Score"].round(2)
+
+st.markdown("**Top 10 joueurs par score d'impact personnalisé**")
+st.dataframe(top_impact.reset_index(drop=True), use_container_width=True)
+
+# --- HEATMAP JOUEUR ---
+st.subheader("🌡️ Heatmap de stats par joueur")
+
+# Liste déroulante avec noms de joueurs
+player_names = player_stats["Player"].unique()
+selected_player = st.selectbox("Sélectionner un joueur", sorted(player_names))
+
+# Sélection des colonnes à visualiser
+heatmap_stats = ["PTS", "AST", "TRB", "STL", "BLK", "TOV", "FG%", "3P%", "FT%"]
+available_stats = [stat for stat in heatmap_stats if stat in player_stats.columns]
+
+# Récupération des stats du joueur sélectionné
+player_row = player_stats[player_stats["Player"] == selected_player].iloc[0]
+player_data = player_row[available_stats].astype(float)
+
+# Création d’un DataFrame 2D pour la heatmap
+heatmap_df = pd.DataFrame(player_data.values.reshape(1, -1), columns=available_stats, index=[selected_player])
+
+# Création de la heatmap
+fig, ax = plt.subplots(figsize=(10, 1.5))
+sns.heatmap(heatmap_df, annot=True, cmap="coolwarm", cbar=False, fmt=".2f", linewidths=1, linecolor="white", ax=ax)
+ax.set_title(f"Heatmap des stats de {selected_player}", fontsize=12)
+st.pyplot(fig)
+
+# --- STATS GÉNÉRALES DES JOUEURS ---
+st.subheader("📊 Statistiques générales des joueurs")
+
+# Vérifie les colonnes disponibles
+stat_cols = ["Player", "Pos", "Team", "G", "MP", "PTS", "AST", "TRB", "STL", "BLK", "TOV", "FG%", "3P%", "FT%"]
+available_cols = [col for col in stat_cols if col in player_stats.columns]
+
+# --- FILTRES ---
+st.markdown("### 🎛️ Filtres")
+
+# Recherche par nom
+search_player = st.text_input("🔍 Rechercher un joueur")
+
+# Filtre équipe
+teams = sorted(player_stats["Team"].dropna().unique())
+selected_teams = st.multiselect("🧢 Équipes", options=teams, default=teams)
+
+# Filtre par position (si disponible)
+if "Pos" in player_stats.columns:
+    positions = sorted(player_stats["Pos"].dropna().unique())
+    selected_positions = st.multiselect("📌 Postes", options=positions, default=positions)
+else:
+    selected_positions = None
+
+# --- APPLICATION DES FILTRES ---
+filtered_players = player_stats.copy()
+if search_player:
+    filtered_players = filtered_players[filtered_players["Player"].str.contains(search_player, case=False)]
+if selected_teams:
+    filtered_players = filtered_players[filtered_players["Team"].isin(selected_teams)]
+if selected_positions:
+    filtered_players = filtered_players[filtered_players["Pos"].isin(selected_positions)]
+
+# --- AFFICHAGE + EXPORT ---
+st.dataframe(filtered_players[available_cols].reset_index(drop=True), use_container_width=True)
+
+csv_export = filtered_players[available_cols].to_csv(index=False)
+st.download_button("📥 Télécharger en CSV", data=csv_export, file_name=f"stats_joueurs_{season}_filtrées.csv", mime="text/csv")
+
+    # --- Fonction utilitaire pour simuler un round ---
+def simulate_round(matchups, simulate):
+    winners = []
+    for i, (team1, team2) in enumerate(matchups, start=1):
+        if simulate:
+            winner = simulate_game(team1, team2)
+            st.write(f"Match {i} : **{team1['Team']}** vs **{team2['Team']}** → 🏅 **{winner}**")
+        else:
+            winner = st.radio(f"Match {i} : {team1['Team']} vs {team2['Team']}",
+                              options=[team1["Team"], team2["Team"]], key=f"r{random.random()}")
+        winners.append(winner)
+    return winners
+
+    st.subheader("🏆 Simulation complète des Playoffs")
+
+# 1. Création des matchs de 1er tour
+def create_matchups(df_top8):
+    return [(df_top8.iloc[i], df_top8.iloc[7 - i]) for i in range(4)]
+
+top8_east = df[df["Conference"] == "Eastern Conference"].sort_values(by="Win%", ascending=False).head(8).reset_index(drop=True)
+top8_west = df[df["Conference"] == "Western Conference"].sort_values(by="Win%", ascending=False).head(8).reset_index(drop=True)
+
+matchups_east = create_matchups(top8_east)
+matchups_west = create_matchups(top8_west)
+
+simulate_button = st.button("🎲 Simuler les playoffs automatiquement")
+
+# 2. Premier tour
+st.markdown("### 🔹 1er Tour Est")
+east_qf = simulate_round(matchups_east, simulate=simulate_button)
+
+st.markdown("### 🔸 1er Tour Ouest")
+west_qf = simulate_round(matchups_west, simulate=simulate_button)
+
+# 3. Demi-finales
+def get_team_row(team_name):
+    return df[df["Team"] == team_name].iloc[0]
+
+st.markdown("### 🔹 Demi-finales Est")
+east_sf_matchups = [(get_team_row(east_qf[0]), get_team_row(east_qf[3])),
+                    (get_team_row(east_qf[1]), get_team_row(east_qf[2]))]
+east_sf = simulate_round(east_sf_matchups, simulate=simulate_button)
+
+st.markdown("### 🔸 Demi-finales Ouest")
+west_sf_matchups = [(get_team_row(west_qf[0]), get_team_row(west_qf[3])),
+                    (get_team_row(west_qf[1]), get_team_row(west_qf[2]))]
+west_sf = simulate_round(west_sf_matchups, simulate=simulate_button)
+
+# 4. Finales de Conférence
+st.markdown("### 🔹 Finale Est")
+east_final = simulate_round([(get_team_row(east_sf[0]), get_team_row(east_sf[1]))], simulate=simulate_button)
+champion_est = east_final[0]
+
+st.markdown("### 🔸 Finale Ouest")
+west_final = simulate_round([(get_team_row(west_sf[0]), get_team_row(west_sf[1]))], simulate=simulate_button)
+champion_west = west_final[0]
+
+# 5. Finale NBA
+st.markdown("## 🏆 Finale NBA")
+nba_final = simulate_round([(get_team_row(champion_est), get_team_row(champion_west))], simulate=simulate_button)
+champion_nba = nba_final[0]
+
+# 6. Résultat
+st.success(f"🥇 **Champion NBA simulé : {champion_nba}** 🎉")
+
+def draw_bracket(east_teams, west_teams, east_sf, west_sf, champ_east, champ_west, champ_nba):
+    fig, ax = plt.subplots(figsize=(12, 7))
+    
+    def draw_side(start_x, teams, sf, champ, label):
+        y_positions = [6, 4.5, 3, 1.5]
+        # 1er tour
+        for i, team in enumerate(teams):
+            ax.text(start_x, y_positions[i], team, va='center', fontsize=9, bbox=dict(boxstyle="round", fc="lightblue"))
+            ax.plot([start_x + 0.5, start_x + 1], [y_positions[i]] * 2, color='black')
+
+        # Demi-finales
+        sf_positions = [5.25, 2.25]
+        for i, team in enumerate(sf):
+            ax.text(start_x + 1.5, sf_positions[i], team, va='center', fontsize=9, bbox=dict(boxstyle="round", fc="skyblue"))
+            ax.plot([start_x + 1, start_x + 1.5], [y_positions[i], sf_positions[i]], color='black')
+            ax.plot([start_x + 1, start_x + 1.5], [y_positions[3 - i], sf_positions[i]], color='black')
+
+        # Finale de conf
+        ax.text(start_x + 3, 3.75, champ, va='center', fontsize=10, weight='bold',
+                bbox=dict(boxstyle="round", fc="deepskyblue"))
+        ax.plot([start_x + 1.5, start_x + 3], [sf_positions[0], 3.75], color='black')
+        ax.plot([start_x + 1.5, start_x + 3], [sf_positions[1], 3.75], color='black')
+
+        # Lien vers finale NBA
+        return 3.75
+
+    y_east = draw_side(0.5, east_teams, east_sf, champ_east, "EST")
+    y_west = draw_side(8.5, west_teams, west_sf, champ_west, "OUEST")
+
+    # Finale NBA
+    ax.text(5.5, 3.75, champ_nba, va='center', ha='center', fontsize=11,
+            bbox=dict(boxstyle="round", fc="gold"))
+    ax.plot([3.5, 5.5], [y_east, 3.75], color='black')
+    ax.plot([9.5, 5.5], [y_west, 3.75], color='black')
+
+    ax.axis("off")
+    ax.set_title("🏆 Bracket des Playoffs NBA", fontsize=14)
+    st.pyplot(fig)
+
+    # --- Fonction de simulation d'un match basée sur le Win% ---
+def simulate_game(team1, team2):
+    prob_team1 = team1["Win%"] / (team1["Win%"] + team2["Win%"])
+    return team1["Team"] if random.random() < prob_team1 else team2["Team"]
+
+def draw_bracket(east_teams, west_teams, east_sf, west_sf, champ_east, champ_west, champ_nba):
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(16, 9))
+
+    def draw_side(start_x, teams, sf, champ, align='left'):
+        # Positions Y pour chaque niveau
+        y_qf = [7.5, 5.5, 3.5, 1.5]  # 1er tour
+        y_sf = [(y_qf[0] + y_qf[1]) / 2, (y_qf[2] + y_qf[3]) / 2]  # demi
+        y_final = (y_sf[0] + y_sf[1]) / 2  # finale conf
+
+        # Draw QF
+        for i, team in enumerate(teams):
+            ax.text(start_x, y_qf[i], team, fontsize=9, va='center',
+                    ha=align, bbox=dict(boxstyle="round", fc="lightblue"))
+            offset = 0.5 if align == 'left' else -0.5
+            ax.plot([start_x, start_x + offset], [y_qf[i], y_qf[i]], color='black')
+
+        # Draw SF
+        for i, team in enumerate(sf):
+            ax.text(start_x + offset + (0.5 if align == 'left' else -0.5),
+                    y_sf[i], team, fontsize=9, va='center',
+                    ha=align, bbox=dict(boxstyle="round", fc="skyblue"))
+            # Connexions
+            ax.plot([start_x + offset, start_x + offset + (0.5 if align == 'left' else -0.5)],
+                    [y_qf[2 * i], y_sf[i]], color='black')
+            ax.plot([start_x + offset, start_x + offset + (0.5 if align == 'left' else -0.5)],
+                    [y_qf[2 * i + 1], y_sf[i]], color='black')
+
+        # Draw Final Conf
+        ax.text(start_x + (2 if align == 'left' else -2), y_final,
+                champ, fontsize=10, weight='bold',
+                ha='center', va='center', bbox=dict(boxstyle="round", fc="deepskyblue"))
+
+        # Lignes jusqu'à la finale conf
+        ax.plot([start_x + offset + (0.5 if align == 'left' else -0.5),
+                 start_x + (2 if align == 'left' else -2)],
+                [y_sf[0], y_final], color='black')
+        ax.plot([start_x + offset + (0.5 if align == 'left' else -0.5),
+                 start_x + (2 if align == 'left' else -2)],
+                [y_sf[1], y_final], color='black')
+
+        return y_final
+
+    # Côté Est à gauche
+    y_east = draw_side(0.5, east_teams, east_sf, champ_east, align='left')
+
+    # Côté Ouest à droite
+    y_west = draw_side(15.5, west_teams, west_sf, champ_west, align='right')
+
+    # Finale NBA au centre
+    ax.text(8, 4.5, champ_nba, fontsize=11, va='center', ha='center',
+            bbox=dict(boxstyle="round", fc="gold"))
+    ax.plot([2.5, 8], [y_east, 4.5], color='black')
+    ax.plot([13.5, 8], [y_west, 4.5], color='black')
+
+    # Titre
+    ax.set_title("🏀 Bracket des Playoffs NBA", fontsize=16, pad=20)
+
+    # Nettoyage
+    ax.axis('off')
+    st.pyplot(fig)
