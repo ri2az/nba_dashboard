@@ -147,30 +147,32 @@ st.download_button("📂 Exporter en CSV", filtered_df.to_csv(index=False), file
 
 # --- GRAPHS ---
 st.subheader("\U0001F4CA Graphiques")
-fig1, ax1 = plt.subplots(figsize=(10, 5))
-ax1.bar(filtered_df["Team"], filtered_df["Wins"], color="#1f77b4")
-ax1.set_ylabel("Victoires")
-ax1.set_title("Nombre de victoires par équipe")
-plt.xticks(rotation=45, ha='right')
-plt.tight_layout()
-st.pyplot(fig1)
 
-fig2, ax2 = plt.subplots(figsize=(10, 5))
-ax2.plot(filtered_df["Team"], filtered_df["Win%"], marker="o", color="#ff7f0e")
-ax2.set_ylabel("Win%")
-ax2.set_title("Pourcentage de victoires par équipe")
-plt.xticks(rotation=45, ha='right')
-plt.tight_layout()
-st.pyplot(fig2)
+with plt.xkcd():
+    fig1, ax1 = plt.subplots(figsize=(10, 5))
+    ax1.bar(filtered_df["Team"], filtered_df["Wins"], color="#1f77b4")
+    ax1.set_ylabel("Victoires")
+    ax1.set_title("Nombre de victoires par équipe")
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    st.pyplot(fig1)
 
-fig3, ax3 = plt.subplots(figsize=(10, 5))
-ax3.bar(filtered_df["Team"], filtered_df["Point Diff"], color="green")
-ax3.axhline(0, color="gray", linestyle="--")
-ax3.set_ylabel("Diff. Points")
-ax3.set_title("Différentiel de points par équipe")
-plt.xticks(rotation=45, ha='right')
-plt.tight_layout()
-st.pyplot(fig3)
+    fig2, ax2 = plt.subplots(figsize=(10, 5))
+    ax2.plot(filtered_df["Team"], filtered_df["Win%"], marker="o", color="#ff7f0e")
+    ax2.set_ylabel("Win%")
+    ax2.set_title("Pourcentage de victoires par équipe")
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    st.pyplot(fig2)
+
+    fig3, ax3 = plt.subplots(figsize=(10, 5))
+    ax3.bar(filtered_df["Team"], filtered_df["Point Diff"], color="green")
+    ax3.axhline(0, color="gray", linestyle="--")
+    ax3.set_ylabel("Diff. Points")
+    ax3.set_title("Différentiel de points par équipe")
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    st.pyplot(fig3)
 
 # --- PLAYOFF TRACKER ---
 st.subheader("🏆 Simu playoffs - Top 8 par conférence")
@@ -217,23 +219,20 @@ coef_pts = st.sidebar.slider("Poids des Points (PTS)", 0.0, 2.0, 0.5, 0.1)
 coef_ast = st.sidebar.slider("Poids des Passes (AST)", 0.0, 2.0, 1.2, 0.1)
 coef_trb = st.sidebar.slider("Poids des Rebonds (TRB)", 0.0, 2.0, 1.0, 0.1)
 
-# --- Filtrage : minimum 65 matchs joués ---
-player_stats_filtered = player_stats[player_stats["G"] >= 65]
-
 # --- Calcul de l'impact personnalisé ---
-player_stats_filtered["Impact Score"] = (
-    player_stats_filtered["PTS"] * coef_pts +
-    player_stats_filtered["AST"] * coef_ast +
-    player_stats_filtered["TRB"] * coef_trb
+player_stats["Impact Score"] = (
+    player_stats["PTS"] * coef_pts +
+    player_stats["AST"] * coef_ast +
+    player_stats["TRB"] * coef_trb
 )
 
-top_impact = player_stats_filtered.sort_values(by="Impact Score", ascending=False)[
-    ["Player", "G", "PTS", "AST", "TRB", "Impact Score"]
+top_impact = player_stats.sort_values(by="Impact Score", ascending=False)[
+    ["Player", "PTS", "AST", "TRB", "Impact Score"]
 ].head(10)
 
 top_impact["Impact Score"] = top_impact["Impact Score"].round(2)
 
-st.markdown("**Top 10 joueurs par score d'impact personnalisé (≥ 65 matchs joués)**")
+st.markdown("**Top 10 joueurs par score d'impact personnalisé**")
 st.dataframe(top_impact.reset_index(drop=True), use_container_width=True)
 
 # --- HEATMAP JOUEUR ---
