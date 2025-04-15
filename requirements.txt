@@ -6,3 +6,4 @@ matplotlib
 pydeck
 seaborn
 numpy
+lxml
